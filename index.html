@@ -2236,6 +2236,7 @@ function doLogin(){
   document.getElementById('screen-landing').classList.remove('active');
   document.getElementById('screen-app').classList.add('active');
   document.getElementById('chat-fab').style.display='flex';
+  setTimeout(()=>showCapsula(), 1200);
   setTimeout(()=>{
     botMsg(`¡Hola ${name.split(' ')[0]}! 🎉 Soy <strong>Artesanito</strong>, tu asistente de aprendizaje. Estoy aquí para guiarte en todo momento. Puedes preguntarme sobre calidad, SIESA o cualquier proceso. ¿Por dónde quieres empezar?`);
     showQuickReplies();
@@ -3539,11 +3540,29 @@ const KB = [
 ];
 function smartReply(msg){
   const low=msg.toLowerCase();
-  for(const entry of KB){
-    if(entry.k.some(k=>low.includes(k))) return entry.r;
+  const MODULE_TOPICS={
+    calidad:{keywords:['paño','paños','peps','rotación','tirilla','cloro','temperatura','formato','contaminación','bpm','microorganismo','higiene','inocuidad','almacenamiento','limpieza','desinfección'],name:'Calidad Operacional',id:'calidad'},
+    sst:{keywords:['epp','guante','seguridad','accidente','incidente','riesgo','peligro','evacuación','race','emergencia','brigada','copasst','sst','extintor'],name:'Seguridad y Salud en el Trabajo',id:'sst'},
+    siesa:{keywords:['csc','cea','cri','crc','siesa','compra','almacén','requisición','consumo','bodega','erp','traslado','inventario','proveedor'],name:'SIESA ERP',id:'siesa'}
+  };
+  for(const [modId,mod] of Object.entries(MODULE_TOPICS)){
+    if(mod.keywords.some(k=>low.includes(k))){
+      const moduleObj=(typeof MODULES!=='undefined')&&MODULES.find(m=>m.id===modId);
+      if(moduleObj){
+        const allDone=moduleObj.lessons.every(l=>S.progress&&S.progress[modId+'_'+l.id]==='done');
+        if(!allDone){
+          const done=moduleObj.lessons.filter(l=>S.progress&&S.progress[modId+'_'+l.id]==='done').length;
+          const total=moduleObj.lessons.length;
+          const pct=Math.round(done/total*100);
+          return `🔒 <strong>Artesanito no puede responder eso todavía.</strong><br><br>Tu pregunta es sobre <strong>${mod.name}</strong>, un módulo que aún no has completado (${done}/${total} lecciones · ${pct}%).<br><br>Para evitar atajos en el aprendizaje, solo comparto información de los módulos <strong>una vez que los terminas</strong>. 🎓<br><br><em>¡Completa el módulo y con gusto te resuelvo todas las dudas!</em> 💪`;
+        }
+      }
+    }
   }
-  return `Entiendo tu pregunta sobre "<em>${msg}</em>". 🤔 Por ahora mi conocimiento está especializado en los procesos de <strong>Calidad</strong> y <strong>SIESA</strong> de Parmessano. Puedes preguntarme sobre paños, temperaturas, tirillas, formatos, o cualquier proceso de SIESA (CSC, CEA, CDP, CRI, CTE, CTS, CRC). ¡Estoy aquí para ayudarte!`;
+  for(const entry of KB){if(entry.k.some(k=>low.includes(k)))return entry.r;}
+  return `Entiendo tu pregunta sobre "<em>${msg}</em>". 🤔 Por ahora mi conocimiento está especializado en los procesos de <strong>Calidad</strong> y <strong>SIESA</strong> de Parmessano. Puedes preguntarme sobre paños, temperaturas, tirillas, formatos, o cualquier proceso de SIESA (CSC, CEA, CDP, CRI, CRC). ¡Estoy aquí para ayudarte!`;
 }
+
 function toggleChat(){
   S.chatOpen=!S.chatOpen;
   document.getElementById('chat-win').classList.toggle('open',S.chatOpen);
@@ -3552,6 +3571,112 @@ function toggleChat(){
     showQuickReplies();
   }
 }
+// ============================================================
+// CÁPSULAS DE CONOCIMIENTO — Artesanito al ingresar
+// ============================================================
+const CAPSULAS = [
+  // CALIDAD
+  {tema:'Calidad',emoji:'🧹',msg:'¿Sabías que el paño <strong>BLANCO</strong> solo va en Cocina? Usarlo en otra área produce contaminación cruzada.'},
+  {tema:'Calidad',emoji:'🌡️',msg:'¿Sabías que entre <strong>5°C y 60°C</strong> es la "zona de peligro" donde los microorganismos se multiplican más rápido?'},
+  {tema:'Calidad',emoji:'📦',msg:'¿Sabías que el sistema <strong>PEPS</strong> significa: lo que entró Primero, sale Primero? Así evitamos productos vencidos.'},
+  {tema:'Calidad',emoji:'🧪',msg:'¿Sabías que la tirilla de cloro debe marcar entre <strong>100 y 200 ppm</strong> para garantizar la desinfección correcta?'},
+  {tema:'Calidad',emoji:'❄️',msg:'¿Sabías que la congelación debe mantenerse a <strong>-18°C o menos</strong>? Por encima de eso, el producto empieza a deteriorarse.'},
+  {tema:'Calidad',emoji:'🔄',msg:'¿Sabías que <strong>NUNCA</strong> debes descongelar a temperatura ambiente? Solo en refrigeración o bajo agua fría corriente.'},
+  {tema:'Calidad',emoji:'🏷️',msg:'¿Sabías que todo producto en descongelación debe llevar el rótulo <strong>"PRODUCTO EN DESCONGELACIÓN"</strong> con la fecha de inicio?'},
+  {tema:'Calidad',emoji:'🧴',msg:'¿Sabías que el desengrasante y el desinfectante son dos productos distintos? <strong>Primero limpias, luego desinfectas</strong>.'},
+  {tema:'Calidad',emoji:'🙌',msg:'¿Sabías que el lavado de manos debe durar al menos <strong>20 segundos</strong>? El tiempo de cantarte "Cumpleaños feliz" dos veces.'},
+  {tema:'Calidad',emoji:'📋',msg:'¿Sabías que los <strong>Formatos BPM</strong> son la evidencia de que cumplimos los estándares? Sin registro, no hay prueba.'},
+  {tema:'Calidad',emoji:'🌡️',msg:'¿Sabías que las carnes crudas deben almacenarse a <strong>0-4°C</strong> y nunca encima de vegetales en el refrigerador?'},
+  {tema:'Calidad',emoji:'🧤',msg:'¿Sabías que los guantes desechables <strong>no reemplazan el lavado de manos</strong>? Deben cambiarse cada 30 minutos.'},
+  // SST
+  {tema:'SST',emoji:'⚠️',msg:'¿Sabías que la diferencia entre peligro y riesgo es clave? El <strong>peligro</strong> es la fuente (piso mojado). El <strong>riesgo</strong> es la probabilidad de que cause daño.'},
+  {tema:'SST',emoji:'🦺',msg:'¿Sabías que el <strong>calzado antideslizante</strong> es el único EPP obligatorio en TODAS las áreas sin excepción?'},
+  {tema:'SST',emoji:'🚒',msg:'¿Sabías que el protocolo de emergencia <strong>RACE</strong> significa: Rescatar, Alertar, Contener y Evacuar?'},
+  {tema:'SST',emoji:'📢',msg:'¿Sabías que todo accidente de trabajo debe reportarse en <strong>máximo 24 horas</strong>? Pasado ese tiempo puede invalidar la cobertura ARL.'},
+  {tema:'SST',emoji:'🔪',msg:'¿Sabías que los <strong>cortes con cuchillo</strong> son el accidente más frecuente en cocina? El guante de corte reduce el riesgo un 95%.'},
+  {tema:'SST',emoji:'🚫',msg:'¿Sabías que la Política de No Consumo prohíbe alcohol y SPA incluso en <strong>actividades fuera de las instalaciones</strong>?'},
+  {tema:'SST',emoji:'👥',msg:'¿Sabías que el <strong>COPASST</strong> tiene representantes tanto de la empresa como de los trabajadores? ¡Tú puedes postularte!'},
+  {tema:'SST',emoji:'🔥',msg:'¿Sabías que <strong>NUNCA</strong> debes usar agua para apagar un incendio de grasa? Puede causar una explosión de fuego.'},
+  {tema:'SST',emoji:'💊',msg:'¿Sabías que si tomas medicamentos de control, debes informárselo a tu líder <strong>sin revelar el diagnóstico</strong>?'},
+  {tema:'SST',emoji:'🏃',msg:'¿Sabías que en una evacuación <strong>NUNCA debes usar el ascensor</strong>? El calor puede bloquearlo entre pisos.'},
+  // SIESA
+  {tema:'SIESA',emoji:'💻',msg:'¿Sabías que la <strong>CSC</strong> (Solicitud de Compra) siempre va dirigida a un proveedor externo, nunca a otra bodega propia?'},
+  {tema:'SIESA',emoji:'📦',msg:'¿Sabías que la <strong>CEA</strong> (Entrada de Almacén) es el documento que legaliza la recepción de mercancía de un proveedor?'},
+  {tema:'SIESA',emoji:'🔄',msg:'¿Sabías que la <strong>CRI</strong> (Requisición Interna) mueve productos entre bodegas del mismo punto sin involucrar proveedores externos?'},
+  {tema:'SIESA',emoji:'🛒',msg:'¿Sabías que la <strong>CRC</strong> (Requisición de Consumo) es para pedir insumos operativos que el punto consume directamente?'},
+  {tema:'SIESA',emoji:'🏷️',msg:'¿Sabías que en SIESA el campo <strong>TERCERO</strong> de la CRC siempre debe ser "NUESTRA COCINA ARTESANAL"?'},
+  {tema:'SIESA',emoji:'📋',msg:'¿Sabías que la <strong>CEA</strong> debe crearse ANTES de guardar la mercancía? El sistema registra la fecha y hora de recepción.'},
+  {tema:'SIESA',emoji:'🔢',msg:'¿Sabías que en SIESA cada producto tiene un <strong>código único</strong>? Nunca uses el nombre solo — el código es la referencia exacta.'},
+];
+
+function showCapsula(){
+  // Pick a capsule - rotate daily based on day of year
+  const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(),0,0)) / 86400000);
+  const capsIndex = (dayOfYear + Math.floor(Math.random()*3)) % CAPSULAS.length;
+  const c = CAPSULAS[capsIndex];
+  
+  // Create overlay
+  const overlay = document.createElement('div');
+  overlay.id = 'capsula-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(58,31,13,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .3s ease;';
+  
+  overlay.innerHTML = `
+    <div style="background:var(--cream);border-radius:20px;max-width:420px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.4);overflow:hidden;animation:slideUp .4s ease;">
+      <div style="background:linear-gradient(135deg,var(--brown-dark),var(--brown));padding:20px 24px;display:flex;align-items:center;gap:12px;">
+        <div style="width:48px;height:48px;background:rgba(255,255,255,.15);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;">${c.emoji}</div>
+        <div>
+          <div style="color:rgba(255,255,255,.7);font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;">Cápsula de conocimiento</div>
+          <div style="color:var(--cream);font-size:15px;font-weight:700;font-family:'Syne',sans-serif;">Artesanito dice... 🤖</div>
+        </div>
+      </div>
+      <div style="padding:24px;">
+        <div style="background:var(--cream-light);border-left:4px solid var(--brown);border-radius:0 12px 12px 0;padding:16px 18px;margin-bottom:16px;font-size:15px;line-height:1.8;color:var(--brown-dark);">${c.msg}</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <span style="font-size:11px;color:var(--text-muted);background:var(--cream-light);padding:4px 10px;border-radius:20px;">📚 ${c.tema}</span>
+          <div style="display:flex;gap:8px;">
+            <button onclick="nextCapsula(${(capsIndex+1)%CAPSULAS.length})" style="background:var(--cream-light);border:1.5px solid var(--border);border-radius:10px;padding:8px 14px;font-size:12px;cursor:pointer;color:var(--brown);">Otra 🔄</button>
+            <button onclick="document.getElementById('capsula-overlay').remove()" style="background:var(--brown-dark);color:var(--cream);border:none;border-radius:10px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;">¡Entendido! 💪</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', (e)=>{ if(e.target===overlay) overlay.remove(); });
+}
+
+function nextCapsula(idx){
+  document.getElementById('capsula-overlay')?.remove();
+  const c = CAPSULAS[idx];
+  setTimeout(()=>{
+    const overlay = document.createElement('div');
+    overlay.id = 'capsula-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(58,31,13,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .3s ease;';
+    overlay.innerHTML = `
+      <div style="background:var(--cream);border-radius:20px;max-width:420px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.4);overflow:hidden;animation:slideUp .4s ease;">
+        <div style="background:linear-gradient(135deg,var(--brown-dark),var(--brown));padding:20px 24px;display:flex;align-items:center;gap:12px;">
+          <div style="width:48px;height:48px;background:rgba(255,255,255,.15);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;">${c.emoji}</div>
+          <div>
+            <div style="color:rgba(255,255,255,.7);font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;">Cápsula de conocimiento</div>
+            <div style="color:var(--cream);font-size:15px;font-weight:700;font-family:'Syne',sans-serif;">Artesanito dice... 🤖</div>
+          </div>
+        </div>
+        <div style="padding:24px;">
+          <div style="background:var(--cream-light);border-left:4px solid var(--brown);border-radius:0 12px 12px 0;padding:16px 18px;margin-bottom:16px;font-size:15px;line-height:1.8;color:var(--brown-dark);">${c.msg}</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <span style="font-size:11px;color:var(--text-muted);background:var(--cream-light);padding:4px 10px;border-radius:20px;">📚 ${c.tema}</span>
+            <div style="display:flex;gap:8px;">
+              <button onclick="nextCapsula(${(idx+1)%CAPSULAS.length})" style="background:var(--cream-light);border:1.5px solid var(--border);border-radius:10px;padding:8px 14px;font-size:12px;cursor:pointer;color:var(--brown);">Otra 🔄</button>
+              <button onclick="document.getElementById('capsula-overlay').remove()" style="background:var(--brown-dark);color:var(--cream);border:none;border-radius:10px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;">¡Entendido! 💪</button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click',(e)=>{if(e.target===overlay)overlay.remove();});
+  }, 200);
+}
+
 function showQuickReplies(){
   document.getElementById('quick-replies').style.display='flex';
 }
@@ -4603,6 +4728,10 @@ function printCertificate(){
   w.document.write(`<html><head><title>Certificado - ${S.user.name}</title>
   <style>body{margin:0;background:white;font-family:Georgia,serif;}
   @media print{body{margin:0;}}
+/* ===== CÁPSULAS DE CONOCIMIENTO ===== */
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+
 /* ===== INTERACTIVE EXERCISE STYLES ===== */
 .flip-card { perspective: 1000px; }
 .flip-card > div { transition: transform 0.5s; transform-style: preserve-3d; }
