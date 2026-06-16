@@ -1480,11 +1480,11 @@ const MODULES = [
     lessons:[
       {id:'ob-1',name:'¿Quiénes somos?',type:'lesson',content:'ob-quienes'},
       {id:'ob-2',name:'Nuestra Cultura y Valores',type:'lesson',content:'ob-cultura'},
-      {id:'ob-ex1',name:'Reflexión: Mi compromiso',type:'exercise',exId:'ex-ob-dialogo'},
       {id:'ob-3',name:'Tu primer día y Horarios',type:'lesson',content:'ob-primer-dia'},
       {id:'ob-ex2',name:'Checklist de Bienvenida',type:'exercise',exId:'ex-ob-checklist'},
       {id:'ob-4',name:'Estructura y Equipo',type:'lesson',content:'ob-equipo'},
       {id:'ob-5',name:'Canales y Beneficios',type:'lesson',content:'ob-comunicacion'},
+      {id:'ob-ex1',name:'Reflexión: Mi compromiso',type:'exercise',exId:'ex-ob-dialogo'}
     ]
   }
 
@@ -2738,7 +2738,7 @@ function showSection(sec){
   document.getElementById('section-reports').style.display='none';
   document.getElementById('nav-home').classList.toggle('active',sec==='home'||sec==='module');
   document.getElementById('nav-reports').classList.toggle('active',sec==='reports');
-  if(sec==='home'){document.getElementById('section-home').style.display='flex';updateStats();renderModules();}
+  if(sec==='home'){document.getElementById('section-home').style.display='flex';updateStats();renderModules();const _cs=document.getElementById('certs-section-home');if(_cs)_cs.innerHTML=renderCertificatesSection();}
   else if(sec==='module'){document.getElementById('section-module').style.display='flex';}
   else if(sec==='reports'){document.getElementById('section-reports').style.display='flex';renderReports();}
   if(sec==='reports') setTimeout(renderInformes,80);
@@ -2798,7 +2798,45 @@ function markDone(){
   buildSidebar();
   if(wasNew){ showXPGain(10); }
 }
-function nextLesson(){markDone();if(S.currentLesson<S.currentMod.lessons.length-1)loadLesson(S.currentLesson+1);else{markDone();showSection('home');}}
+function nextLesson(){
+  markDone();
+  if(S.currentLesson<S.currentMod.lessons.length-1){
+    loadLesson(S.currentLesson+1);
+  } else {
+    markDone();
+    // Calculate module score (avg of all quizzes + exercises in module)
+    const mod=S.currentMod;
+    const modScores=[];
+    mod.lessons.forEach(l=>{
+      const key=mod.id+'_'+l.id;
+      if(S.scores[key]!=null) modScores.push(S.scores[key]);
+    });
+    const avg=modScores.length?Math.round(modScores.reduce((a,b)=>a+b,0)/modScores.length):100;
+    // Save certificate
+    const certData={
+      modId:mod.id,
+      modName:mod.name,
+      modIcon:mod.icon||'📚',
+      score:avg,
+      date:new Date().toISOString(),
+      userName:S.user.name,
+      userCedula:S.user.cedula||'',
+      userRole:ROLES[S.user.role]||S.user.role,
+      userSede:SEDES[S.user.sede]||S.user.sede
+    };
+    // Save per-user certs list (keyed by cedula so director can find all)
+    const userCertKey='pa2_certs_'+(S.user.cedula||S.user.name.replace(/\s/g,'_'));
+    const allCerts=JSON.parse(localStorage.getItem(userCertKey)||'[]');
+    const certIdx=allCerts.findIndex(c=>c.modId===mod.id);
+    if(certIdx>=0) allCerts[certIdx]=certData; else allCerts.push(certData);
+    localStorage.setItem(userCertKey,JSON.stringify(allCerts));
+    // Also save in generic key for current session
+    localStorage.setItem('pa2_certs',JSON.stringify(allCerts));
+    showSection('home');
+    // Show certificate popup after brief delay
+    setTimeout(()=>showCertificatePopup(certData),400);
+  }
+}
 
 // ============================================================
 // LESSON RENDERER
@@ -4141,7 +4179,131 @@ function chatSend(){
 }
 
 
-// ===== SCROLL REVEAL =====
+// ============================================================
+// CERTIFICADOS
+// ============================================================
+function showCertificatePopup(cert){
+  const fecha=new Date(cert.date).toLocaleDateString('es-CO',{year:'numeric',month:'long',day:'numeric'});
+  const scoreColor=cert.score>=80?'#27ae60':cert.score>=60?'#e67e22':'#e74c3c';
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(58,31,13,.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .3s ease;';
+  ov.innerHTML=`<div style="background:var(--cream);border-radius:20px;max-width:480px;width:100%;box-shadow:0 24px 80px rgba(0,0,0,.4);overflow:hidden;animation:slideUp .4s ease;">
+    <div style="background:linear-gradient(135deg,#3a1f0d,#5c3317);padding:24px;text-align:center;position:relative;">
+      <div style="font-size:48px;margin-bottom:8px;">${cert.modIcon}</div>
+      <div style="color:rgba(255,220,150,.8);font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">¡Módulo completado!</div>
+      <div style="color:white;font-size:20px;font-weight:800;font-family:'Syne',sans-serif;margin-top:4px;">${cert.modName}</div>
+    </div>
+    <div style="padding:24px;text-align:center;">
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:6px;">Puntaje obtenido</div>
+      <div style="font-size:56px;font-weight:800;color:${scoreColor};font-family:'Syne',sans-serif;line-height:1;">${cert.score}%</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">${fecha}</div>
+      <div style="background:var(--cream2);border-radius:10px;padding:12px 16px;margin:16px 0;font-size:13px;color:var(--brown-dark);">
+        🎓 <strong>${cert.userName}</strong> · ${cert.userRole} · ${cert.userSede}
+      </div>
+      <div style="display:flex;gap:10px;margin-top:16px;">
+        <button onclick="downloadCertificatePDF(${JSON.stringify(cert).replace(/"/g,'&quot;')})" style="flex:1;background:var(--brown-dark);color:var(--cream);border:none;border-radius:12px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;">📄 Descargar PDF</button>
+        <button onclick="this.closest('[style*=fixed]').remove()" style="flex:1;background:var(--cream2);border:1.5px solid var(--border);border-radius:12px;padding:12px;font-size:14px;cursor:pointer;color:var(--brown-dark);">Cerrar</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+}
+
+function downloadCertificatePDF(cert){
+  const fecha=new Date(cert.date).toLocaleDateString('es-CO',{year:'numeric',month:'long',day:'numeric'});
+  const scoreColor=cert.score>=80?'#27ae60':cert.score>=60?'#e67e22':'#e74c3c';
+  const nota=cert.score>=90?'Sobresaliente':cert.score>=80?'Excelente':cert.score>=70?'Bueno':cert.score>=60?'Aceptable':'En proceso';
+  const w=window.open('','_blank','width=900,height=680');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Certificado - ${cert.modName}</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{font-family:'Georgia',serif;background:#fdf6ec;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;}
+    .cert{width:820px;background:white;border:3px solid #5c3317;border-radius:8px;padding:50px 60px;text-align:center;position:relative;}
+    .cert::before{content:'';position:absolute;inset:12px;border:1.5px solid #b8860b;border-radius:4px;pointer-events:none;}
+    .logo{font-size:44px;margin-bottom:6px;}
+    .brand{font-size:12px;letter-spacing:3px;text-transform:uppercase;color:#5c3317;margin-bottom:6px;}
+    .brand2{font-size:11px;color:#8a6a50;margin-bottom:28px;}
+    .title{font-size:32px;color:#3a1f0d;font-weight:700;margin-bottom:6px;}
+    .subtitle{font-size:12px;color:#8a6a50;letter-spacing:2px;text-transform:uppercase;margin-bottom:24px;}
+    .certifica{font-size:14px;color:#5c3317;margin-bottom:6px;}
+    .nombre{font-size:30px;color:#3a1f0d;font-style:italic;border-bottom:2px solid #b8860b;display:inline-block;padding:0 30px 8px;margin:10px 0 18px;}
+    .detalle{font-size:14px;color:#5c3317;line-height:1.8;margin-bottom:16px;}
+    .modulo{font-size:20px;font-weight:700;color:#3a1f0d;}
+    .score-box{display:inline-flex;align-items:center;gap:16px;background:#f9f5f0;border-radius:12px;padding:14px 28px;margin:16px 0;border:1.5px solid #e0cdb0;}
+    .score-n{font-size:40px;font-weight:800;color:${scoreColor};}
+    .score-l{font-size:13px;color:#5c3317;text-align:left;}
+    .footer{display:flex;justify-content:space-between;align-items:flex-end;margin-top:36px;padding-top:20px;border-top:1px solid #e0cdb0;}
+    .firma{text-align:center;width:180px;}
+    .firma-line{border-top:1px solid #5c3317;margin:0 auto 6px;}
+    .firma-label{font-size:10px;color:#8a6a50;letter-spacing:1px;text-transform:uppercase;}
+    .sello{width:64px;height:64px;border-radius:50%;background:#5c3317;display:flex;align-items:center;justify-content:center;font-size:28px;}
+    @media print{body{background:white;}.cert{margin:0;}}
+  </style></head><body>
+  <div class="cert">
+    <div class="logo">🍓</div>
+    <div class="brand">Parmessano Academy</div>
+    <div class="brand2">Nuestra Cocina Artesanal S.A.S.</div>
+    <div class="title">Certificado de Completación</div>
+    <div class="subtitle">Formación Interna Corporativa</div>
+    <div class="certifica">Este certificado acredita que</div>
+    <div class="nombre">${cert.userName}</div>
+    <div class="detalle">Con cargo de <strong>${cert.userRole}</strong> en la sede <strong>${cert.userSede}</strong><br>ha completado satisfactoriamente el módulo de formación:</div>
+    <div class="modulo">${cert.modIcon} ${cert.modName}</div>
+    <div class="score-box">
+      <div class="score-n">${cert.score}%</div>
+      <div class="score-l"><strong>Puntaje obtenido</strong><br>Calificación: ${nota}<br>Fecha: ${fecha}</div>
+    </div>
+    <div class="footer">
+      <div class="firma"><div class="firma-line"></div><div class="firma-label">Firma del Colaborador</div></div>
+      <div class="sello">🍓</div>
+      <div class="firma"><div class="firma-line"></div><div class="firma-label">Parmessano Academy</div></div>
+    </div>
+  </div>
+  <div style="text-align:center;margin:20px;"><button onclick="window.print()" style="background:#5c3317;color:white;border:none;padding:12px 32px;border-radius:10px;font-size:15px;cursor:pointer;font-family:Georgia,serif;">🖨️ Imprimir / Guardar PDF</button></div>
+  </body></html>`);
+  w.document.close();
+}
+
+function renderCertificatesSection(){
+  let certs=[];
+  if(S.user){
+    const ck='pa2_certs_'+(S.user.cedula||S.user.name.replace(/\s/g,'_'));
+    certs=JSON.parse(localStorage.getItem(ck)||'[]');
+    if(!certs.length) certs=JSON.parse(localStorage.getItem('pa2_certs')||'[]');
+  } else {
+    certs=JSON.parse(localStorage.getItem('pa2_certs')||'[]');
+  }
+  let html=`<div class="sec-title">🎓 Mis certificados</div>`;
+  if(!certs.length){
+    html+=`<div style="background:white;border:1.5px dashed var(--border);border-radius:16px;padding:28px;text-align:center;margin-bottom:24px;">
+      <div style="font-size:36px;margin-bottom:8px;">🎓</div>
+      <div style="font-size:14px;font-weight:600;color:var(--brown-dark);margin-bottom:4px;">Aún no tienes certificados</div>
+      <div style="font-size:13px;color:var(--text-muted);">Completa un módulo para obtener tu primer certificado</div>
+    </div>`;
+    return html;
+  }
+  html+=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin-bottom:32px;">`;
+  certs.forEach(cert=>{
+    const fecha=new Date(cert.date).toLocaleDateString('es-CO',{day:'numeric',month:'short',year:'numeric'});
+    const scoreColor=cert.score>=80?'#27ae60':cert.score>=60?'#e67e22':'#e74c3c';
+    html+=`<div style="background:white;border:1.5px solid var(--border);border-radius:16px;padding:20px;box-shadow:0 2px 10px rgba(0,0,0,.06);position:relative;overflow:hidden;">
+      <div style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,var(--brown-dark),var(--brown));"></div>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+        <span style="font-size:28px;">${cert.modIcon}</span>
+        <div><div style="font-size:13px;font-weight:700;color:var(--brown-dark);">${cert.modName}</div>
+        <div style="font-size:11px;color:var(--text-muted);">${fecha}</div></div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div style="font-size:32px;font-weight:800;color:${scoreColor};font-family:'Syne',sans-serif;">${cert.score}%</div>
+        <div style="background:${scoreColor}20;border-radius:20px;padding:4px 10px;font-size:11px;font-weight:700;color:${scoreColor};">${cert.score>=80?'Excelente':cert.score>=60?'Bueno':'En proceso'}</div>
+      </div>
+      <button onclick="showCertificatePopup(${JSON.stringify(cert).replace(/"/g,'&quot;')})" style="width:100%;background:var(--brown-dark);color:var(--cream);border:none;border-radius:10px;padding:9px;font-size:13px;font-weight:600;cursor:pointer;">📄 Ver y descargar</button>
+    </div>`;
+  });
+  html+=`</div>`;
+  return html;
+}
 function initScrollReveal(){
   if(!window.IntersectionObserver) return;
   const obs = new IntersectionObserver((entries)=>{
@@ -7279,9 +7441,30 @@ function paDirPanel(){
   // KPIs
   var kpisDiv=document.createElement('div');
   kpisDiv.style.cssText='display:grid;grid-template-columns:repeat(4,1fr);gap:10px;';
+  // Calculate certificates metrics
+  var allUserCerts={};
+  try{
+    var lsKeys=Object.keys(localStorage);
+    lsKeys.filter(function(k){return k.startsWith('pa2_certs_') || k==='pa2_certs';}).forEach(function(k){
+      var certs=JSON.parse(localStorage.getItem(k)||'[]');
+      certs.forEach(function(c){
+        if(!allUserCerts[c.modId]) allUserCerts[c.modId]={count:0,totalScore:0,modName:c.modName,modIcon:c.modIcon};
+        allUserCerts[c.modId].count++;
+        allUserCerts[c.modId].totalScore+=c.score;
+      });
+    });
+    // Also check current user
+    var myCerts=JSON.parse(localStorage.getItem('pa2_certs')||'[]');
+    myCerts.forEach(function(c){
+      if(!allUserCerts[c.modId]) allUserCerts[c.modId]={count:0,totalScore:0,modName:c.modName,modIcon:c.modIcon};
+    });
+  }catch(e){}
+  var totalCerts=Object.values(allUserCerts).reduce(function(a,b){return a+b.count;},0);
+  var avgScore=totalCerts?Math.round(Object.values(allUserCerts).reduce(function(a,b){return a+b.totalScore;},0)/totalCerts):0;
+
   [{n:db.length,l:'Colaboradores',i:'👥'},{n:sessions.length,l:'Sesiones',i:'📋'},
    {n:uniq(sessions,function(s){return s.name;}).length,l:'Usuarios únicos',i:'👤'},
-   {n:uniq(sessions,function(s){return s.device;}).length,l:'Dispositivos',i:'📱'}
+   {n:totalCerts,l:'Certificados emitidos',i:'🎓'}
   ].forEach(function(k){
     var d=document.createElement('div');
     d.style.cssText='background:var(--white);border:1.5px solid var(--border);border-radius:10px;padding:12px;text-align:center;';
@@ -7290,6 +7473,45 @@ function paDirPanel(){
     var lbl=document.createElement('div');lbl.style.cssText='font-size:10px;color:var(--text-muted);';lbl.textContent=k.l;
     d.appendChild(ico);d.appendChild(num);d.appendChild(lbl);kpisDiv.appendChild(d);
   });body.appendChild(kpisDiv);
+
+  // CERTIFICATES BREAKDOWN SECTION
+  var certsSection=document.createElement('div');
+  certsSection.style.cssText='background:var(--white);border:1.5px solid var(--border);border-radius:14px;padding:16px;';
+  var certsTitleEl=document.createElement('div');
+  certsTitleEl.style.cssText='font-family:Syne,sans-serif;font-size:15px;font-weight:700;color:var(--brown-dark);margin-bottom:12px;';
+  certsTitleEl.textContent='🎓 Certificados por módulo';
+  certsSection.appendChild(certsTitleEl);
+  var certsGrid=document.createElement('div');
+  certsGrid.style.cssText='display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;';
+  var certMods=Object.values(allUserCerts);
+  if(certMods.length===0){
+    var noC=document.createElement('div');
+    noC.style.cssText='color:var(--text-muted);font-size:13px;padding:8px;';
+    noC.textContent='No hay certificados emitidos aún.';
+    certsSection.appendChild(noC);
+  } else {
+    certMods.forEach(function(cm){
+      var avg=Math.round(cm.totalScore/cm.count);
+      var sc=avg>=80?'#27ae60':avg>=60?'#e67e22':'#e74c3c';
+      var cd=document.createElement('div');
+      cd.style.cssText='background:var(--cream);border-radius:10px;padding:12px;border:1px solid var(--border);';
+      cd.innerHTML='<div style="font-size:20px;margin-bottom:4px;">'+cm.modIcon+'</div>'
+        +'<div style="font-size:12px;font-weight:700;color:var(--brown-dark);margin-bottom:6px;">'+cm.modName+'</div>'
+        +'<div style="display:flex;align-items:center;justify-content:space-between;">'
+        +'<span style="font-size:11px;color:var(--text-muted);">'+cm.count+' certificado'+(cm.count!==1?'s':'')+'</span>'
+        +'<span style="font-size:16px;font-weight:800;color:'+sc+';">'+avg+'%</span>'
+        +'</div>'
+        +'<div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Puntaje promedio</div>';
+      certsGrid.appendChild(cd);
+    });
+    certsSection.appendChild(certsGrid);
+    // Summary row
+    var sumRow=document.createElement('div');
+    sumRow.style.cssText='margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted);';
+    sumRow.innerHTML='<span>Total certificados emitidos: <strong>'+totalCerts+'</strong></span><span>Puntaje promedio global: <strong>'+avgScore+'%</strong></span>';
+    certsSection.appendChild(sumRow);
+  }
+  body.appendChild(certsSection);
 
   // Import file section (uses innerHTML safely - no font-family quotes needed)
   var impDiv=document.createElement('div');
